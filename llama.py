@@ -289,18 +289,21 @@ class Llama(LlamaPreTrainedModel):
                 4) sample from the scaled probability distribution.
                 '''
                 if top_k is not None:
-                    values, indices = torch.topk(logits, top_k, dim=-1)
-                    mask = torch.ones_like(logits).scatter_(-1, indices, 0.0)
-                    logits.masked_fill_(mask.bool(), float('-inf'))
+                    topk_vals, topk_idx = torch.topk(logits, top_k, dim=-1)
+                    
+                    kth_value = topk_vals[..., -1, None]
 
-                scaled_logits = logits / temperature
-                probs = F.softmax(scaled_logits, dim=-1)
-                idx_next = torch.multinomial(probs, num_samples=1)
+                    logits = torch.where(logits < kth_value,
+                                        torch.full_like(logits, float('-inf')),
+                                        logits)
 
-            # append sampled index to the running sequence and continue
-            idx = torch.cat((idx, idx_next), dim=1)
+                logits = logits / temperature
 
-        return idx
+                probs = torch.softmax(logits, dim=-1)
+
+            idx_next = torch.multinomial(probs, 1)
+
+        return idx_next
 
 
 def load_pretrained(checkpoint):
